@@ -1,15 +1,13 @@
 import functools
-
-from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for
-)
+from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
-
 from distance_app.db import get_db
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-
+"""
+Register user based on username and password. Store hashed password in the database.
+"""
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
     if request.method == 'POST':
@@ -39,7 +37,9 @@ def register():
 
     return render_template('auth/register.html')
 
-
+"""
+Login user by verifying username and password against the database.
+"""
 @bp.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
