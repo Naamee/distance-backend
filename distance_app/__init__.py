@@ -1,36 +1,17 @@
-import os
 from flask import Flask
+from config import Config
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
-def create_app(test_config=None):
-    # create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(
-        SECRET_KEY='dev',
-        DATABASE=os.path.join(app.instance_path, 'distance_app.sqlite'),
-    )
+app = Flask(__name__)
+app.config.from_object(Config) # Load configuration from config.py
+db = SQLAlchemy(app) # Initialize SQLAlchemy
+migrate = Migrate(app, db) # Initialize Flask-Migrate
 
-    if test_config is None:
-        # load the instance config, if it exists, when not testing
-        app.config.from_pyfile('config.py', silent=True)
-    else:
-        # load the test config if passed in
-        app.config.from_mapping(test_config)
 
-    # ensure the instance folder exists
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
+# Import and register blueprints
+from distance_app import auth, routes
 
-    # a simple page that says hello
-    @app.route('/hello')
-    def hello():
-        return 'Hello, World!'
+app.register_blueprint(auth.bp)
+app.register_blueprint(routes.bp)
 
-    from . import db
-    db.init_app(app)
-
-    from . import auth
-    app.register_blueprint(auth.bp)
-
-    return app
