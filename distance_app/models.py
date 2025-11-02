@@ -1,11 +1,17 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from typing import Optional
-from distance_app import db
+from distance_app import db, login
+from flask_login import UserMixin # For user session management
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Load user for Flask-Login session management
+@login.user_loader
+def load_user(id: int):
+    return db.session.get(int(id))
 
-class User(db.Model):
+
+class User(UserMixin, db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     username: so.Mapped[str] = so.mapped_column(
         sa.String(64), unique=True, index=True
