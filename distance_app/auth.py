@@ -6,7 +6,28 @@ from .models import User
 
 bp = Blueprint('auth', __name__)
 
-@bp.route('/login', methods=['GET', 'POST'])
+@bp.route('/register', methods=['POST'])
+def register():
+    if current_user.is_authenticated:
+        return jsonify({'message': 'Already logged in.'}), 200
+
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    user = User(username=username)
+    user.set_password(password)
+    db.session.add(user)
+
+    try:
+        db.session.commit()
+        return jsonify({'message': 'User registered successfully.'}), 201
+    except sa.exc.IntegrityError:
+        db.session.rollback()
+        return jsonify({'message': 'Username already exists.'}), 400
+
+
+@bp.route('/login', methods=['POST'])
 def login():
     if current_user.is_authenticated:
         return jsonify({'message': 'Already logged in.'}), 200

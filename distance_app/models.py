@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # Load user for Flask-Login session management
 @login.user_loader
 def load_user(id: int):
-    return db.session.get(int(id))
+    return db.session.get(User, int(id))
 
 
 class User(UserMixin, db.Model):

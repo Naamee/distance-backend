@@ -9,13 +9,13 @@ bp = Blueprint('main', __name__)
 @login_required
 def meet():
     if request.method == 'POST':
-        data = request.get_json()
+        # data = request.get_json()
 
-        db = db.get_db()
+        # db = db.get_db()
 
-        db.execute(
-            "INSERT INTO meet_date (date) VALUES (?)", (data['date'],)
-        )
-        db.commit()
+        # db.execute(
+        #     "INSERT INTO meet_date (date) VALUES (?)", (data['date'],)
+        # )
+        # db.commit()
 
         return jsonify({'message': 'meet date added successfully.'}), 201
