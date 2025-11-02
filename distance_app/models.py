@@ -1,14 +1,9 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from typing import Optional
-from distance_app import db, login
-from flask_login import UserMixin # For user session management
+from distance_app import db
+from flask_login import UserMixin  # For user session management
 from werkzeug.security import generate_password_hash, check_password_hash
-
-# Load user for Flask-Login session management
-@login.user_loader
-def load_user(id: int):
-    return db.session.get(User, int(id))
 
 
 class User(UserMixin, db.Model):
@@ -17,7 +12,9 @@ class User(UserMixin, db.Model):
         sa.String(64), unique=True, index=True
     )  # index to speed up lookups
     password_hash: so.Mapped[str] = so.mapped_column(sa.String(256))
-    alerts: so.Mapped[list["Alert"]] = so.relationship(back_populates="user") # ORM relationship to get all Alerts for a User
+    alerts: so.Mapped[list["Alert"]] = so.relationship(
+        back_populates="user"
+    )  # ORM relationship to get all Alerts for a User
 
     def __repr__(self) -> str:
         return f"<User: {self.username}>"
@@ -88,7 +85,9 @@ class Alert(db.Model):
     user_id: so.Mapped[int] = so.mapped_column(
         sa.Integer, sa.ForeignKey("user.id", name="fk_alert_user_id"), index=True
     )
-    user: so.Mapped[User] = so.relationship(back_populates="alerts") # ORM relationship to acess User object from Alert
+    user: so.Mapped[User] = so.relationship(
+        back_populates="alerts"
+    )  # ORM relationship to acess User object from Alert
     created_at = so.mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now()
     )

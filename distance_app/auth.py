@@ -1,10 +1,15 @@
 from flask import Blueprint, request, jsonify
 from flask_login import current_user, login_user, logout_user
 import sqlalchemy as sa
-from distance_app import db
+from distance_app import db, login
 from .models import User
 
 bp = Blueprint('auth', __name__)
+
+# Load user for Flask-Login session management
+@login.user_loader
+def load_user(id: int):
+    return db.session.get(User, int(id))
 
 @bp.route('/register', methods=['POST'])
 def register():
