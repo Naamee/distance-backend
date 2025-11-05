@@ -1,10 +1,11 @@
 import os
-from flask import Flask, jsonify
 from .config import Config
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get(
@@ -13,6 +14,8 @@ app.secret_key = os.environ.get(
 CORS(app, supports_credentials=True, origins=["http://localhost:3000"])  # Enable CORS
 
 app.config.from_object(Config)  # Load configuration from config.py
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(minutes=1)
+
 db = SQLAlchemy(app)  # Initialize SQLAlchemy
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
 login = LoginManager(app)  # Initialize Flask-Login
