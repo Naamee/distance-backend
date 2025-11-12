@@ -50,33 +50,37 @@ def meet():
 @login_required
 def fridge():
     if request.method == 'GET':
-        #query parameters
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', type=int)
+        per_page = request.args.get('per_page', 8, type=int)
 
-        query = sa.select(FridgeItem).where(FridgeItem.type == 'add')
-        total_items = db.session.scalar(sa.select(sa.func.count()).select_from(query.subquery()))
+        grouped_query = sa.select(
+            FridgeItem.name,
+            FridgeItem.category,
+            sa.func.sum(FridgeItem.quantity).label("quantity")
+        ).where(FridgeItem.type == 'add').group_by(FridgeItem.name, FridgeItem.category)
 
-        # Apply pagination if per_page is specified, else get all items
-        if not per_page:
-            paginated_items = db.session.scalars(query).all()
+        # Total unique items for pagination
+        total_items = db.session.scalar(sa.select(sa.func.count()).select_from(grouped_query.subquery()))
+
+        # Apply pagination
+        if per_page:
+            paginated_items = db.session.execute(
+                grouped_query.offset((page - 1) * per_page).limit(per_page)
+            ).all()
         else:
-            paginated_items = db.session.scalars(query.offset((page - 1) * per_page).limit(per_page)).all()
+            paginated_items = db.session.execute(grouped_query).all()
 
-        unique_pairs = {(item.name, item.category) for item in paginated_items} # this is to get the total quantity per unique name-category pair
-        items_list = []
-        for name, category in unique_pairs:
-            total_quantity = sum(
-                item.quantity for item in paginated_items if item.name == name and item.category == category
-            )
-            items_list.append({
-                'name': name,
+        # Build response
+        items_list = [
+            {
+                'name': row.name,
                 'type': 'add',
-                'category': category,
-                'quantity': total_quantity,
-            })
+                'category': row.category,
+                'quantity': row.quantity,
+            }
+            for row in paginated_items
+        ]
 
-        # Calculate pagination metadata
         total_pages = (total_items + per_page - 1) // per_page if per_page else 1
 
         return jsonify({
