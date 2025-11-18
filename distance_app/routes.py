@@ -46,20 +46,39 @@ def meet():
             return jsonify({'message': 'No meet date to delete.'}), 404
 
 
-@bp.route('/fridge', methods=('GET', 'POST'))
+@bp.route('/fridge', methods=('GET', 'POST', 'PUT'))
 @login_required
 def fridge():
     if request.method == 'GET':
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 8, type=int)
+        item = request.args.get('item', None, type=str)
+        category = request.args.get('category', None, type=str)
+        status = request.args.get('status', None, type=str)
+
+        quantity_sum = sa.func.sum(
+            sa.case((FridgeEntry.type == 'add', FridgeEntry.quantity), else_=0) # sum of 'add' quantities from fridge entries
+            - sa.case((FridgeEntry.type == 'used', FridgeEntry.quantity), else_=0) # minus sum of 'used' quantities from fridge entries
+        ).label('quantity')
 
         grouped_query = sa.select(
+            FridgeItem.id,
             FridgeItem.name,
             FridgeItem.category,
-            sa.func.sum(FridgeItem.quantity).label("quantity")
-        ).where(FridgeItem.type == 'add').group_by(FridgeItem.name, FridgeItem.category)
+            quantity_sum.label('quantity')
+        ).outerjoin(FridgeItem.entries).group_by(FridgeItem.name, FridgeItem.category) #outer join to include items with zero entries
 
-        # Total unique items for pagination
+        # filtering
+        if item:
+            grouped_query = grouped_query.where(FridgeItem.name.ilike(f'%{item}%'))
+        if category:
+            grouped_query = grouped_query.where(FridgeItem.category == category)
+        if status == 'Available':
+            grouped_query = grouped_query.having(quantity_sum > 0)
+        elif status == 'Unavailable':
+            grouped_query = grouped_query.having(quantity_sum <= 0)
+
+        # Total unique items for pagination after filtering
         total_items = db.session.scalar(sa.select(sa.func.count()).select_from(grouped_query.subquery()))
 
         # Apply pagination
@@ -73,10 +92,10 @@ def fridge():
         # Build response
         items_list = [
             {
-                'name': row.name,
-                'type': 'add',
-                'category': row.category,
-                'quantity': row.quantity,
+                'id': row[0],
+                'name': row[1],
+                'category': row[2],
+                'quantity': row[3],
             }
             for row in paginated_items
         ]
@@ -95,19 +114,62 @@ def fridge():
 
     elif request.method == 'POST':
         data = request.get_json()
-        required_fields = {'name', 'category', 'quantity'}
+        required_fields = {'name', 'category'}
+
+        # Basic validation
         if not data or not required_fields.issubset(data):
-            return jsonify({'message': 'All fields are required.'}), 400
+            return jsonify({'message': 'Missing required fields.'}), 400
+        if not data['name'].strip() or not data['category'].strip():
+            return jsonify({'message': 'Invalid values provided.'}), 400
 
         new_item = FridgeItem(
             name=data['name'],
-            type='add',
             category=data['category'],
-            quantity=data['quantity']
         )
         db.session.add(new_item)
         db.session.commit()
         return jsonify({'message': 'Fridge item added successfully.'}), 201
+
+
+@bp.route('/fridge_item', methods=('POST',))
+#login_required
+def update_fridge_quantity():
+    data = request.get_json()
+    required_fields = {'id', 'quantity', 'type'}
+
+    # validations
+    if not data or not required_fields.issubset(data):
+        return jsonify({'message': 'Missing required fields.'}), 400
+    if not data['id'] or data['quantity'] == 0:
+        return jsonify({'message': 'Invalid values provided.'}), 400
+    if data['type'] not in {'add', 'used'}:
+        return jsonify({'message': 'Type must be either "add" or "used".'}), 400
+
+    item = db.session.get(FridgeItem, data['id'])
+    if not item:
+        return jsonify({'message': 'Item not found.'}), 404
+    if data['type'] == 'used':
+        # Check current quantity
+        quantity_sum = db.session.scalar(
+            sa.select(
+                sa.func.sum(
+                    sa.case((FridgeEntry.type == 'add', FridgeEntry.quantity), else_=0)
+                    - sa.case((FridgeEntry.type == 'used', FridgeEntry.quantity), else_=0)
+                )
+            ).where(FridgeEntry.item_id == data['id'])
+        ) or 0
+        if data['quantity'] > quantity_sum:
+            return jsonify({'message': 'Insufficient quantity available to use.'}), 400
+
+    # if all validations pass, create a new FridgeEntry
+    new_item = FridgeEntry(
+        item_id=data['id'],
+        quantity=data['quantity'],
+        type=data['type'],
+    )
+    db.session.add(new_item)
+    db.session.commit()
+    return jsonify({'message': 'Fridge item quantity updated successfully.'}), 201
 
 
 @bp.route('/fridge/<int:item_id>', methods=('PUT', 'DELETE'))
@@ -123,9 +185,7 @@ def fridge_item(item_id):
             return jsonify({'message': 'No data provided.'}), 400
 
         item.name = data.get('name', item.name)
-        item.type = data.get('type', item.type)
         item.category = data.get('category', item.category)
-        item.quantity = data.get('quantity', item.quantity)
 
         db.session.commit()
         return jsonify({'message': 'Fridge item updated successfully.'}), 200
