@@ -7,6 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class User(UserMixin, db.Model):
+    __tablename__ = "user"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     username: so.Mapped[str] = so.mapped_column(
         sa.String(64), unique=True, index=True
@@ -27,6 +28,7 @@ class User(UserMixin, db.Model):
 
 
 class MeetDate(db.Model):
+    __tablename__ = "meet_date"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     date: so.Mapped[str] = so.mapped_column(
         sa.String(10)
@@ -43,12 +45,36 @@ class MeetDate(db.Model):
 
 
 class FridgeItem(db.Model):
+    __tablename__ = "fridge_item"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     name: so.Mapped[str] = so.mapped_column(
         sa.String(256), index=True
     )  # index to speed up lookups
-    type: so.Mapped[str] = so.mapped_column(sa.String(64), default="add")
     category: so.Mapped[str] = so.mapped_column(sa.String(128))
+    entries: so.Mapped[list["FridgeEntry"]] = so.relationship(
+        back_populates="item"
+    )  # ORM relationship to get all FridgeEntries for a FridgeItem
+    created_at = so.mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now()
+    )
+    updated_at = so.mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<FridgeItem: {self.name}>"
+
+
+class FridgeEntry(db.Model):
+    __tablename__ = "fridge_entry"
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    item_id: so.Mapped[int] = so.mapped_column(
+        sa.Integer,
+        sa.ForeignKey("fridge_item.id", name="fk_fridge_item_id"),
+        index=True,
+    )
+    item: so.Mapped[FridgeItem] = so.relationship(FridgeItem, back_populates="entries")
+    type: so.Mapped[str] = so.mapped_column(sa.String(16))  # 'add' or 'remove'
     quantity: so.Mapped[int] = so.mapped_column(sa.Integer)
     created_at = so.mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now()
@@ -58,10 +84,11 @@ class FridgeItem(db.Model):
     )
 
     def __repr__(self) -> str:
-        return f"<FridgeItem: {self.name} ({self.quantity})>"
+        return f"<FridgeEntry: {self.type} {self.quantity} of Item ID {self.item_id}>"
 
 
 class Movie(db.Model):
+    __tablename__ = "movie"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     name: so.Mapped[str] = so.mapped_column(
         sa.String(256), index=True
@@ -78,6 +105,7 @@ class Movie(db.Model):
 
 
 class Alert(db.Model):
+    __tablename__ = "alert"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     task: so.Mapped[str] = so.mapped_column(sa.String(512))
     occurence: so.Mapped[str] = so.mapped_column(sa.String(256))
