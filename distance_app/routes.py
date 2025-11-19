@@ -131,6 +131,49 @@ def fridge():
         return jsonify({'message': 'Fridge item added successfully.'}), 201
 
 
+@bp.route('/fridge/<int:item_id>/entries', methods=('GET',))
+def fridge_item_entries(item_id):
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 8, type=int)
+
+    item = db.session.get(FridgeItem, item_id)
+    if not item:
+        return jsonify({'message': 'Item not found.'}), 404
+
+    entries_query = sa.select(FridgeEntry).where(FridgeEntry.item_id == item_id).order_by(FridgeEntry.created_at.desc())
+    total_entries = db.session.scalar(sa.select(sa.func.count()).select_from(entries_query.subquery()))
+
+    if per_page:
+        paginated_entries = db.session.execute(
+            entries_query.offset((page - 1) * per_page).limit(per_page)
+        ).scalars().all()
+    else:
+        paginated_entries = db.session.execute(entries_query).scalars().all()
+
+    entries_list = [
+        {
+            'id': entry.id,
+            'type': entry.type,
+            'quantity': entry.quantity,
+            'date': entry.updated_at.isoformat(),
+        }
+        for entry in paginated_entries
+    ]
+
+    total_pages = (total_entries + per_page - 1) // per_page if per_page else 1
+
+    return jsonify({
+        'name': item.name,
+        'data': entries_list,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total_items': total_entries,
+            'total_pages': total_pages,
+        }
+    }), 200
+
+
 @bp.route('/fridge_item', methods=('POST',))
 #login_required
 def update_fridge_quantity():
@@ -170,27 +213,3 @@ def update_fridge_quantity():
     db.session.add(new_item)
     db.session.commit()
     return jsonify({'message': 'Fridge item quantity updated successfully.'}), 201
-
-
-@bp.route('/fridge/<int:item_id>', methods=('PUT', 'DELETE'))
-@login_required
-def fridge_item(item_id):
-    item = db.session.get(FridgeItem, item_id)
-    if not item:
-        return jsonify({'message': 'Item not found.'}), 404
-
-    if request.method == 'PUT':
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No data provided.'}), 400
-
-        item.name = data.get('name', item.name)
-        item.category = data.get('category', item.category)
-
-        db.session.commit()
-        return jsonify({'message': 'Fridge item updated successfully.'}), 200
-
-    elif request.method == 'DELETE':
-        db.session.delete(item)
-        db.session.commit()
-        return jsonify({'message': 'Fridge item deleted successfully.'}), 200
