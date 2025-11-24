@@ -130,38 +130,50 @@ def fridge():
         db.session.commit()
         return jsonify({'message': 'Fridge item added successfully.'}), 201
 
-@bp.route('/fridge/<int:item_id>', methods=('PUT',))
+@bp.route('/fridge/<int:item_id>', methods=('PUT', 'DELETE'))
 @login_required
 def edit_fridge_item(item_id):
-    data = request.get_json()
-    required_fields = {'name', 'category'}
+    if request.method == 'DELETE':
+        item = db.session.get(FridgeItem, item_id)
+        if not item:
+            return jsonify({'message': 'Item not found.'}), 404
 
-    # validations
-    if not data or not required_fields.issubset(data):
-        return jsonify({'message': 'Missing required fields.'}), 400
-    if not data['name'].strip() or not data['category'].strip():
-        return jsonify({'message': 'Invalid values provided.'}), 400
+        # delete associated entries first due to foreign key constraint
+        db.session.execute(sa.delete(FridgeEntry).where(FridgeEntry.item_id == item_id))
+        db.session.delete(item)
+        db.session.commit()
+        return jsonify({'message': 'Fridge item deleted successfully.'}), 200
 
-    similiar_item = db.session.scalar(
-        sa.select(FridgeItem).where(
-            FridgeItem.name == data['name'],
-            FridgeItem.category == data['category'],
-            FridgeItem.id != item_id
+    if request.method == 'PUT':
+        data = request.get_json()
+        required_fields = {'name', 'category'}
+
+        # validations
+        if not data or not required_fields.issubset(data):
+            return jsonify({'message': 'Missing required fields.'}), 400
+        if not data['name'].strip() or not data['category'].strip():
+            return jsonify({'message': 'Invalid values provided.'}), 400
+
+        similiar_item = db.session.scalar(
+            sa.select(FridgeItem).where(
+                FridgeItem.name == data['name'],
+                FridgeItem.category == data['category'],
+                FridgeItem.id != item_id
+            )
         )
-    )
-    if similiar_item:
-        return jsonify({'message': 'An item with the same name and category already exists.'}), 400
+        if similiar_item:
+            return jsonify({'message': 'An item with the same name and category already exists.'}), 400
 
-    # fetch the item to be updated
-    item = db.session.get(FridgeItem, item_id)
-    if not item:
-        return jsonify({'message': 'Item not found.'}), 404
+        # fetch the item to be updated
+        item = db.session.get(FridgeItem, item_id)
+        if not item:
+            return jsonify({'message': 'Item not found.'}), 404
 
-    # update item details
-    item.name = data['name']
-    item.category = data['category']
-    db.session.commit()
-    return jsonify({'message': 'Fridge item updated successfully.'}), 200
+        # update item details
+        item.name = data['name']
+        item.category = data['category']
+        db.session.commit()
+        return jsonify({'message': 'Fridge item updated successfully.'}), 200
 
 
 @bp.route('/fridge/<int:item_id>/entries', methods=('GET',))
