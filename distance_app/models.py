@@ -46,10 +46,9 @@ class MeetDate(db.Model):
 
 class FridgeItem(db.Model):
     __tablename__ = "fridge_item"
+    __table_args__ = (sa.UniqueConstraint('name', 'category', name='uq_fridge_item_name_category')) # ensure unique name-category pairs
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
-    name: so.Mapped[str] = so.mapped_column(
-        sa.String(256), index=True
-    )  # index to speed up lookups
+    name: so.Mapped[str] = so.mapped_column(sa.String(256))
     category: so.Mapped[str] = so.mapped_column(sa.String(128))
     entries: so.Mapped[list["FridgeEntry"]] = so.relationship(
         back_populates="item"
@@ -90,9 +89,7 @@ class FridgeEntry(db.Model):
 class Movie(db.Model):
     __tablename__ = "movie"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
-    name: so.Mapped[str] = so.mapped_column(
-        sa.String(256), index=True
-    )  # index to speed up lookups
+    name: so.Mapped[str] = so.mapped_column(sa.String(256))
     created_at = so.mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now()
     )
