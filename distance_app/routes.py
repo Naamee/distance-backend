@@ -46,7 +46,7 @@ def meet():
             return jsonify({'message': 'No meet date to delete.'}), 404
 
 
-@bp.route('/fridge', methods=('GET', 'POST', 'PUT'))
+@bp.route('/fridge', methods=('GET', 'POST'))
 @login_required
 def fridge():
     if request.method == 'GET':
@@ -178,7 +178,7 @@ def edit_fridge_item(item_id):
 
 @bp.route('/fridge/<int:item_id>/entries', methods=('GET',))
 @login_required
-def fridge_item_entries(item_id):
+def get_fridge_entries(item_id):
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
 
@@ -221,7 +221,7 @@ def fridge_item_entries(item_id):
     }), 200
 
 
-@bp.route('/fridge_item', methods=('POST',))
+@bp.route('/fridge_entry', methods=('POST',))
 @login_required
 def update_fridge_quantity():
     data = request.get_json()
@@ -251,7 +251,6 @@ def update_fridge_quantity():
         if data['quantity'] > quantity_sum:
             return jsonify({'message': 'Insufficient quantity available to use.'}), 400
 
-    # if all validations pass, create a new FridgeEntry
     new_item = FridgeEntry(
         item_id=data['id'],
         quantity=data['quantity'],
@@ -260,3 +259,49 @@ def update_fridge_quantity():
     db.session.add(new_item)
     db.session.commit()
     return jsonify({'message': 'Fridge item quantity updated successfully.'}), 201
+
+@bp.route('/fridge_entry/<int:item_id>', methods=('PUT', 'DELETE'))
+@login_required
+def modify_fridge_entry(item_id):
+    entry = db.session.get(FridgeEntry, item_id)
+    if not entry:
+        return jsonify({'message': 'Fridge entry not found.'}), 404
+
+    if request.method == 'DELETE':
+        db.session.delete(entry)
+        db.session.commit()
+        return jsonify({'message': 'Fridge entry deleted successfully.'}), 200
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        required_fields = {'quantity', 'type'}
+
+        # validations
+        if not data or not required_fields.issubset(data):
+            return jsonify({'message': 'Missing required fields.'}), 400
+        if data['quantity'] == 0:
+            return jsonify({'message': 'Invalid values provided.'}), 400
+        if data['type'] not in {'add', 'used'}:
+            return jsonify({'message': 'Type must be either "add" or "used".'}), 400
+
+        if data['type'] == 'used':
+            # Check current quantity excluding this entry
+            quantity_sum = db.session.scalar(
+                sa.select(
+                    sa.func.sum(
+                        sa.case((FridgeEntry.type == 'add', FridgeEntry.quantity), else_=0)
+                        - sa.case((FridgeEntry.type == 'used', FridgeEntry.quantity), else_=0)
+                    )
+                ).where(
+                    FridgeEntry.item_id == entry.item_id,
+                    FridgeEntry.id != item_id
+                )
+            ) or 0
+            if data['quantity'] > quantity_sum:
+                return jsonify({'message': 'Insufficient quantity available to use.'}), 400
+
+        # update entry details
+        entry.quantity = data['quantity']
+        entry.type = data['type']
+        db.session.commit()
+        return jsonify({'message': 'Fridge entry updated successfully.'}), 200
