@@ -51,7 +51,7 @@ def meet():
 def fridge():
     if request.method == 'GET':
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 8, type=int)
+        per_page = request.args.get('per_page', None, type=int)
         item = request.args.get('item', None, type=str)
         category = request.args.get('category', None, type=str)
         status = request.args.get('status', None, type=str)
@@ -180,7 +180,7 @@ def edit_fridge_item(item_id):
 @login_required
 def get_fridge_entries(item_id):
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    per_page = request.args.get('per_page', None, type=int)
 
     item = db.session.get(FridgeItem, item_id)
     if not item:
