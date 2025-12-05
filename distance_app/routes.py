@@ -305,3 +305,89 @@ def modify_fridge_entry(item_id):
         entry.type = data['type']
         db.session.commit()
         return jsonify({'message': 'Fridge entry updated successfully.'}), 200
+
+
+@bp.route('/movies', methods=('GET', 'POST',))
+@login_required
+def movies():
+    if request.method == 'GET':
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', None, type=int)
+        name = request.args.get('name', None, type=str)
+        status = request.args.get('status', None, type=str)
+
+        query = sa.select(Movie.id, Movie.name, Movie.status, Movie.created_at).order_by(Movie.created_at.desc())
+
+        # filtering
+        if name:
+            query = query.where(Movie.name.ilike(f'%{name}%'))
+        if status == 'Watched':
+            query = query.where(Movie.status == 'Watched')
+        elif status == 'Unwatched':
+            query = query.where(Movie.status == 'Unwatched')
+
+        # Total unique items for pagination after filtering
+        total_items = db.session.scalar(sa.select(sa.func.count()).select_from(query.subquery()))
+        # Apply pagination
+        if per_page:
+            paginated_items = db.session.execute(
+                query.offset((page - 1) * per_page).limit(per_page)
+            ).all()
+        else:
+            paginated_items = db.session.execute(query).all()
+
+        # Build response
+        items_list = [
+            {
+                'id': row[0],
+                'name': row[1],
+                'status': row[2],
+                'date': row[3].isoformat(),
+            }
+            for row in paginated_items
+        ]
+
+        total_pages = (total_items + per_page - 1) // per_page if per_page else 1
+
+        return jsonify({
+            'data': items_list,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+            }
+        }), 200
+
+    elif request.method == 'POST':
+        data = request.get_json()
+        if not data or 'name' not in data or not data['name'].strip():
+            return jsonify({'message': 'Movie name is required.'}), 400
+
+        new_movie = Movie(name=data['name'].strip())
+        db.session.add(new_movie)
+        db.session.commit()
+        return jsonify({'message': 'Movie added successfully.'}), 201
+
+
+@bp.route('/movies/<int:movie_id>', methods=('DELETE', 'PATCH'))
+@login_required
+def modify_movie(movie_id):
+    movie = db.session.get(Movie, movie_id)
+    if not movie:
+        return jsonify({'message': 'Movie not found.'}), 404
+
+    if request.method == 'PATCH':
+        data = request.get_json()
+        if not data or 'status' not in data or data['status'] not in {'Watched', 'Unwatched'}:
+            return jsonify({'message': 'Valid status is required.'}), 400
+
+        movie.status = data['status']
+        db.session.commit()
+        return jsonify({'message': 'Movie status updated successfully.'}), 200
+
+    elif request.method == 'DELETE':
+
+        db.session.delete(movie)
+        db.session.commit()
+        return jsonify({'message': 'Movie deleted successfully.'}), 200

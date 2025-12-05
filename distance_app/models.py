@@ -90,6 +90,7 @@ class Movie(db.Model):
     __tablename__ = "movie"
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     name: so.Mapped[str] = so.mapped_column(sa.String(256))
+    status: so.Mapped[str] = so.mapped_column(sa.String(64), default="Unwatched")
     created_at = so.mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now()
     )
